@@ -1,8 +1,8 @@
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Serverblight VR</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>:root{--bg:#000;--fg:#ccc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}@media(prefers-color-scheme:dark){:root{--bg:#000;--fg:#ccc}}html,body{margin:0;height:100%;background:var(--bg)}#h{position:fixed;left:10px;top:calc(10px + env(safe-area-inset-top,0px));right:10px;z-index:5;color:var(--fg);font:14px sans-serif;pointer-events:none}</style>
+<style>:root{--bg:#000;--fg:#ccc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}@media(prefers-color-scheme:dark){:root{--bg:#000;--fg:#ccc}}html,body{margin:0;height:100%;background:var(--bg)}#h{display:none!important;position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);color:var(--fg);font:16px sans-serif;padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px)}</style>
 <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script></head><body>
-<div id="h"><b>Serverblight VR</b> (Meta Quest 2). Abre en el navegador del Quest y pulsa el icono VR. Muévete golpeando el suelo y las paredes con las manos; suelta para saltar.</div>
+<div id="h"><b>Serverblight VR</b><br>Golpea suelo y paredes con las manos para moverte; suelta para saltar.<br><button id="go" style="pointer-events:auto;margin-top:12px;padding:16px 28px;font-size:20px;font-weight:bold;border:0;border-radius:10px;background:#2a7;color:#fff">▶ START (entrar en VR)</button><div id="st" style="margin-top:10px"></div></div>
 <a-scene renderer="antialias:false" vr-mode-ui="enabled:true" background="color:#000">
 <a-entity id="rig" gt><a-entity id="cam" camera look-controls="enabled:false" position="0 1.6 0"></a-entity>
 <a-entity id="lh" oculus-touch-controls="hand:left;model:false"><a-sphere radius=".06" color="#222"></a-sphere></a-entity>
@@ -110,4 +110,10 @@ amb=new T.AmbientLight(0x8899bb,.35);sc.add(amb);fl=new T.PointLight(0xcfe8ff,1.
 sub=P(1.1,.28,false);sub.position.set(0,-.3,-1);sub.renderOrder=99;sub.visible=false;cam.object3D.add(sub);
 world();spawnStart();setEnv(0);go=1;
 S.addEventListener('enter-vr',au);[lh,rh].forEach(h=>['triggerdown','abuttondown'].forEach(e=>h.addEventListener(e,()=>{au();if(ended)reset()})))});
+window.addEventListener('error',e=>{document.getElementById('st').textContent='Error: '+e.message});
+const st=document.getElementById('st'),hd=document.getElementById('h');
+if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(!ok)st.textContent='VR no disponible aquí. Abre el enlace directamente en el navegador del Quest.'}).catch(()=>{});else st.textContent='WebXR no disponible aquí. Abre el enlace directamente en el navegador del Quest (no dentro de otra app o vista previa).';
+let busy=0;const run=async e=>{e.preventDefault();if(busy)return;busy=1;setTimeout(()=>busy=0,1500);st.textContent='Iniciando...';try{au()}catch(x){}try{await S.enterVR()}catch(x){st.textContent='No se pudo entrar en VR: '+x.message}};
+['click','touchend','pointerup'].forEach(ev=>document.getElementById('go').addEventListener(ev,run));
+S.addEventListener('enter-vr',()=>hd.style.display='none');S.addEventListener('exit-vr',()=>hd.style.display='');
 </script></body></html>
