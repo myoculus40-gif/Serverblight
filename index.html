@@ -1,119 +1,35 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Serverblight VR</title>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>:root{--bg:#000;--fg:#ccc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}@media(prefers-color-scheme:dark){:root{--bg:#000;--fg:#ccc}}html,body{margin:0;height:100%;background:var(--bg)}#h{display:none!important;position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);color:var(--fg);font:16px sans-serif;padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px)}</style>
-<script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script></head><body>
-<div id="h"><b>Serverblight VR</b><br>Golpea suelo y paredes con las manos para moverte; suelta para saltar.<br><button id="go" style="pointer-events:auto;margin-top:12px;padding:16px 28px;font-size:20px;font-weight:bold;border:0;border-radius:10px;background:#2a7;color:#fff">▶ START (entrar en VR)</button><div id="st" style="margin-top:10px"></div></div>
-<a-scene renderer="antialias:false" vr-mode-ui="enabled:true" background="color:#000">
-<a-entity id="rig" gt><a-entity id="cam" camera look-controls="enabled:false" position="0 1.6 0"></a-entity>
-<a-entity id="lh" oculus-touch-controls="hand:left;model:false"><a-sphere radius=".06" color="#222"></a-sphere></a-entity>
-<a-entity id="rh" oculus-touch-controls="hand:right;model:false"><a-sphere radius=".06" color="#222"></a-sphere></a-entity></a-entity></a-scene>
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SERVERBLIGHT VR</title>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#ccc;font-family:monospace;overflow:hidden}
+#ui{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:5;background:#050508}
+h1{color:#b22;letter-spacing:6px}p{max-width:560px;font-size:14px;opacity:.8}
+#vrb{font:22px monospace;padding:16px 40px;background:#611;color:#fff;border:2px solid #c33;cursor:pointer}
+</style></head><body>
+<div id="ui"><h1>SERVERBLIGHT VR</h1>
+<p>Servidor antiguo GT-0412. Camina con los brazos: empuja el suelo, las paredes y los árboles con las manos. Sin joystick. Llega a Forest.</p>
+<button id="vrb">ENTRAR EN VR</button><p id="msg"></p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const T=AFRAME.THREE,V3=T.Vector3,S=document.querySelector('a-scene');
-let sc,rig,cam,lh,rh,amb,fl,sub,boxes=[],npcs=[],ph=0,go=0,env=-1,vel=new V3(),prev=[null,null],touch=[0,0],lv=[new V3(),new V3()],
-c1=null,c2=null,sg=null,subT=0,ended=0,cd=0,A,dG,tNow=0,pcP,tQ=0,spawnT=0,chT=0,beat=0;
-const M=c=>new T.MeshLambertMaterial({color:c,flatShading:true}),R=Math.random,FG=new T.BoxGeometry(.02,1,.02).translate(0,-.5,0);
-const floorY=(x,z)=>z<=-72?0:z<-66?-3*(z+72)/6:z<=-23?-3:z<-20?(Math.abs(x)<2?-3:0):0;
-/* AUDIO procedural */
-function au(){if(A)return;A=new AudioContext();dG=A.createGain();dG.gain.value=.03;[46,69.3].forEach(f=>{const o=A.createOscillator();o.frequency.value=f;o.connect(dG);o.start()});dG.connect(A.destination)}
-function tone(f,d,v,ty,fe){if(!A)return;const n=A.currentTime,o=A.createOscillator(),g=A.createGain();o.type=ty||'sine';o.frequency.setValueAtTime(f,n);if(fe)o.frequency.exponentialRampToValueAtTime(fe,n+d);g.gain.setValueAtTime(v,n);g.gain.exponentialRampToValueAtTime(.0001,n+d);o.connect(g);g.connect(A.destination);o.start();o.stop(n+d)}
-const hush=v=>dG&&dG.gain.setTargetAtTime(v,A.currentTime,.5),voice=()=>tone(170+R()*60,.25,.04,'sawtooth',110);
-/* PANELES DE TEXTO (canvas, sin fuentes externas) */
-function P(w,h,dt){const c=document.createElement('canvas');c.width=512;c.height=Math.round(512*h/w);const tx=new T.CanvasTexture(c),m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tx,transparent:true,depthTest:dt}));
-m.set=(s,bg)=>{const x=c.getContext('2d');x.clearRect(0,0,512,c.height);if(bg){x.fillStyle=bg;x.fillRect(0,0,512,c.height)}x.fillStyle='#ddd';x.font='bold 26px monospace';x.textAlign='center';s.split('\n').forEach((l,i,a)=>x.fillText(l,256,c.height/2+(i-(a.length-1)/2)*34+9));tx.needsUpdate=true};return m}
-function wrap(s,n){const o=[];let l='';s.split(' ').forEach(w=>{if((l+' '+w).trim().length>n){o.push(l);l=w}else l=(l+' '+w).trim()});o.push(l);return o.join('\n')}
-function say(s,sec){sub.set(wrap(s,30));sub.visible=true;subT=sec||4}
-/* MUNDO PROCEDURAL */
-function B(x,y,z,w,h,d,c,solid,rx){const m=new T.Mesh(new T.BoxGeometry(w,h,d),M(c));m.position.set(x,y,z);m.rotation.x=rx||0;sc.add(m);if(solid!==0)boxes.push([x-w/2,x+w/2,y-h/2,y+h/2,z-d/2,z+d/2]);return m}
-function world(){
-B(0,-.25,-10,8,.5,20,0x34343a,0);B(-2.5,-.25,-21.5,1,.5,3,0x34343a,0);B(2.5,-.25,-21.5,1,.5,3,0x34343a,0);
-B(0,-3.25,-43,8,.5,46,0x2a2a30,0);B(0,-1.75,-69,8,.5,6.71,0x2a2a30,0,.4636);
-B(0,4.5,-36,9,2,72,0x1c1c20);B(0,3,2,14,9,1,0x555560);B(0,-.25,-91,29,.5,40,0x4a4a4e,0);B(0,-.25,-123.5,29,.5,25,0x5a4a32,0);B(0,-.25,-156.5,29,.5,41,0x2c4a2c,0);
-for(let i=0;i<14;i++){const z=-2.5-i*5.2,j=(i%3)*.4;B(-3+j-1.5,.5,z,3,9,5.3,0x3c3a40);B(3-j+1.5,.5,z,3,9,5.3,0x3a3c40)}
-B(-3.5,0,-69,3,9,6,0x3c3a40);B(3.5,0,-69,3,9,6,0x3c3a40);
-B(-14.5,3,-124,1,10,106,0x333338);B(14.5,3,-124,1,10,106,0x333338);B(0,3,-177,30,10,1,0x333338);
-[[-8,-80,5,6,5],[7,-84,6,4,6],[-9,-93,4,8,6],[8,-97,5,3,5],[-5,-103,6,5,4],[5,-106,3,6,3]].forEach(a=>B(a[0],a[3]/2,a[1],a[2],a[3],a[4],0x6a6a72));
-const st=new T.Mesh(new T.CylinderGeometry(2.2,2.8,5,8),M(0x6b5030));st.position.set(0,2.5,-123);sc.add(st);boxes.push([-2.2,2.2,0,5,-125.2,-120.8]);
-[[-7,-118],[6,-127],[-6,-130],[8,-116]].forEach((a,i)=>B(a[0],.6+i*.2,a[1],3,1.2+i*.4,3,0x4a3a22));
-for(let i=0;i<16;i++){const x=(i%2?1:-1)*(3+R()*8),z=-140-i*2.3;B(x,2,z,.6,4,.6,0x4a3220);const c=new T.Mesh(new T.ConeGeometry(1.7,3.5,6),M(0x1f5a2a));c.position.set(x,5.5,z);sc.add(c)}
-const cm=[0x40d0ff,0x6aa0ff,0x30ffc0].map(c=>new T.MeshBasicMaterial({color:c})),og=new T.OctahedronGeometry(1);
-for(let i=0;i<64;i++){const z=-4-R()*66,s=z<-46?1.6:1,m=new T.Mesh(og,cm[i%3]),sd=R()<.5?-1:1;m.scale.set((.12+R()*.2)*s,(.4+R()*.8)*s,.12*s);m.position.set(sd*2.9,-2+R()*5,z);m.rotation.z=sd*(.9+R()*.5);sc.add(m)}
-const big=new T.Mesh(og,new T.MeshBasicMaterial({color:0xffb0e0}));big.scale.set(.5,1.6,.5);big.position.set(2.7,-1.5,-57);big.rotation.z=1;sc.add(big);
-pcP=new T.Group();B(2,.5,-3,.7,1,.15,0x222222,0).position.set(2,.5,-3);const pm=P(.7,.4,true);pm.position.set(2,1.2,-2.9);pm.set('PC DEL SERVIDOR\n[Desconectar]',  '#112');sc.add(pm);pcP=pm}
-/* GORILLAS */
-function G(col){const g=new T.Group(),m=M(col),bd=new T.Mesh(new T.SphereGeometry(.3,8,6),m);bd.scale.set(1.2,1.1,.8);bd.position.y=.95;g.add(bd);
-const hd=new T.Mesh(new T.SphereGeometry(.16,8,6),m);hd.position.set(0,1.38,.05);g.add(hd);
-const e=new T.Mesh(new T.BoxGeometry(.2,.04,.02),new T.MeshBasicMaterial({color:0xffffff}));e.position.set(0,1.4,.2);g.add(e);g.arms=[];g.fin=[];g.m=m;
-[-1,1].forEach(s=>{const p=new T.Group();p.position.set(s*.38,1.15,0);const a=new T.Mesh(new T.CylinderGeometry(.06,.05,1,6),m);a.position.y=-.5;p.add(a);const h=new T.Group();h.position.y=-1;p.add(h);h.add(new T.Mesh(new T.SphereGeometry(.07,6,5),m));
-for(let i=0;i<4;i++){const f=new T.Mesh(FG,m);f.position.set((i-1.5)*.035,-.05,0);f.scale.y=.09;h.add(f);g.fin.push(f)}g.arms.push(p);g.add(p)});
-g.setF=l=>g.fin.forEach(f=>f.scale.y=l);sc.add(g);return g}
-function mk(col,x,z,b,lines,mode){const g=G(col);g.position.set(x,floorY(x,z),z);const n={g,b,lines,mode:mode||'idle',t:0,nt:0,jy:0,jv:0,tx:x,tz:z,inf:0};npcs.push(n);return n}
-function walk(g,dt,sp,tx,tz){const dx=tx-g.position.x,dz=tz-g.position.z,d=Math.hypot(dx,dz);if(d>.12){g.position.x+=dx/d*sp*dt;g.position.z+=dz/d*sp*dt;g.rotation.y=Math.atan2(dx,dz)}return d}
-const clampB=n=>{n.g.position.x=Math.max(n.b[0],Math.min(n.b[1],n.g.position.x));n.g.position.z=Math.max(n.b[2],Math.min(n.b[3],n.g.position.z))};
-function spawnStart(){const L=['oye, salta por el agujero, es divertido','no te caigas, jaja','qué silencio hay hoy...','¿vienes a las minas?'];
-[[0x6b4a2a,-1.5,-6],[0x3a5a8a,1.5,-9],[0x8a3a3a,-1,-13],[0x6a6a3a,1.8,-16]].forEach(a=>mk(a[0],a[1],a[2],[-2.5,2.5,-18,-3],L));
-sg=mk(0x4a4a5a,0,-38,[0,0,-38,-38],null,'scared')}
-function clear(){npcs.forEach(n=>sc.remove(n.g));npcs=[];[c1,c2].forEach(c=>c&&sc.remove(c.g));c1=c2=null;sg=null}
-function reset(){clear();rig.object3D.position.set(0,0,0);vel.set(0,0,0);ph=0;ended=0;setEnv(0);sub.visible=false;pcP.visible=true;spawnStart()}
-function caught(){if(cd)return;cd=1;say('Te atraparon... Reconectando al servidor',3);hush(0);setTimeout(()=>{reset();cd=0;hush(.03)},3000)}
-function crea(col,x,z,m){const g=G(col);g.position.set(x,floorY(x,z),z);return{g,mode:m,t:0,sp:3,d:99}}
-function setEnv(n){if(env===n)return;env=n;const[c,d,a]=n?(n==2?[0x9ec9e8,.012,1.3]:[0x3a4658,.025,.7]):[0x020304,.06,.35];sc.background=new T.Color(c);sc.fog=new T.FogExp2(c,d);amb.intensity=a;fl.intensity=n?0:1.3}
-function zone(){[[0x6b4a2a,'flee'],[0x3a5a8a,'flee'],[0x8a3a3a,'flee'],[0x151515,'hunt'],[0x151515,'hunt']].forEach((a,i)=>{const n=mk(a[0],-1.5+i*.8,-50-i*3,[-2.7,2.7,-65,-48],null,a[1]);if(a[1]=='hunt'){n.g.setF(.8);n.g.m.color.set(a[0])}})}
-/* FRAME */
-function hit(p){if(p.y<floorY(p.x,p.z)+.06)return 1;for(const b of boxes)if(p.x>b[0]-.03&&p.x<b[1]+.03&&p.y>b[2]-.03&&p.y<b[3]+.03&&p.z>b[4]-.03&&p.z<b[5]+.03)return 1;return 0}
-const hp=new V3();
-function frame(t,dt){tNow=t;const rp=rig.object3D.position;let any=0,rel=-1;
-[lh,rh].forEach((h,i)=>{const l=h.object3D.position,w=l.clone().add(rp),c=hit(w);if(c&&prev[i]){const mv=prev[i].clone().sub(l);rp.add(mv);lv[i].copy(mv).divideScalar(dt)}
-if(c&&!touch[i])tone(80,.12,.15,'sine',40);if(!c&&touch[i])rel=i;touch[i]=c;prev[i]=c?l.clone():null;any|=c;
-if(pcP.visible&&w.distanceTo(pcP.position)<.4&&t>tQ){tQ=t+4000;say(ph>=1?'ERROR: no puedes desconectarte durante el evento':'Sesión estable. Aún no.',3)}});
-if(any)vel.set(0,0,0);else{if(rel>=0)vel.copy(lv[rel]).clampLength(0,8);vel.y-=9.8*dt;rp.addScaledVector(vel,dt)}
-let fy=floorY(rp.x,rp.z);if(rp.y<fy){rp.y=fy;if(vel.y<0)vel.y=0}
-cam.object3D.getWorldPosition(hp);for(const b of boxes){if(hp.y>b[2]-.3&&hp.y<b[3]+.3){const e=[hp.x-(b[0]-.25),b[1]+.25-hp.x,hp.z-(b[4]-.25),b[5]+.25-hp.z];if(e.every(v=>v>0)){const k=e.indexOf(Math.min(...e));if(k==0)rp.x-=e[0];else if(k==1)rp.x+=e[1];else if(k==2)rp.z-=e[2];else rp.z+=e[3]}}}
-if(subT>0&&(subT-=dt)<=0)sub.visible=false;
-const z=rp.z;if(!ended){setEnv(z>-70?0:1);story(t,dt,rp)}
-if(!cd)npcs.forEach(n=>npc(n,t,dt,rp));
-if(Math.random()<.004&&env==0&&!c1)((f)=>{tone(f,1.8,.025);setTimeout(()=>tone(f*1.5,1.5,.012),400)})(1000+R()*900)}
-function story(t,dt,rp){const z=rp.z;
-if(ph==0&&sg&&Math.hypot(sg.g.position.x-rp.x,sg.g.position.z-rp.z)<4){ph=1;hush(0);voice();say('Sal de aquí mientras puedas... no dejes que te atrape vivo.',6);spawnT=t+6500}
-if(ph==1&&t>spawnT){ph=2;c1=crea(0x0b0b0b,0,-23.5,'approach');c1.d0=Math.hypot(rp.x,rp.z+23.5)}
-if(ph==2&&z<-47){ph=3;hush(.03);zone();say('...¿qué es todo esto?',3)}
-if(ph==3&&z<-54){ph=4;c2=crea(0x2a1040,2.7,-57,'rise');c2.g.position.y=-5;tone(60,2,.09,'sawtooth',30);hush(0);c2.g.setF(1)}
-if(ph==4&&z<-72){ph=5;clear();c1=crea(0x0b0b0b,rp.x,rp.z+14,'chase2');c1.g.setF(1.3);say('...',2)}
-if(ph==5&&z<-168){ended=1;clear();setEnv(2);say('Cambiando de servidor...\nServidor-0 · 0 jugadores',7);hush(.03);for(let i=0;i<5;i++)setTimeout(()=>tone(2200+R()*800,.2,.03),2000+i*900);setTimeout(()=>say('Fin. Pulsa A o gatillo para reiniciar',99),8000)}
-[c1,c2].forEach(c=>c&&crea_upd(c,t,dt,rp))}
-function crea_upd(c,t,dt,rp){const g=c.g,d=Math.hypot(rp.x-g.position.x,rp.z-g.position.z);c.d=d;const w=Math.sin(t*.012);
-if(c.mode=='approach'){walk(g,dt,1.4,rp.x,rp.z);g.setF(.09+.7*Math.max(0,Math.min(1,(c.d0-d)/(c.d0-7))));g.rotation.z=Math.sin(t*.009)*.2;if(d<7)c.mode='chase'}
-else if(c.mode=='chase'||c.mode=='chase2'||c.mode=='hunt2'){let sp=c.mode=='chase'?3.1:3.4+1.2*Math.min(1,(-rp.z-72)/96);if(c.mode=='chase2'&&d>18){g.position.x=rp.x;g.position.z=rp.z+12}
-if(c.mode=='chase'&&(d>24||rp.z<-46)){c.mode='stop';c.t=tNow}walk(g,dt,sp,rp.x,rp.z);g.setF(c.mode=='chase'?.8:1.3);if(d<.8)caught()}
-else if(c.mode=='rise'){g.position.y+=dt*2.5;if(g.position.y>=floorY(2.7,-57)){c.mode='chase3';c.sp=3.2}}
-else if(c.mode=='chase3'){walk(g,dt,3.2,rp.x,rp.z);g.setF(1);if(d<.8)caught();if(rp.z<-69||d>24){g.visible=false}}
-else if(c.mode=='stop'&&tNow-c.t>6000)g.visible=false;
-if(g.visible){g.position.y=floorY(g.position.x,g.position.z)+(c.mode=='rise'?g.position.y-floorY(2.7,-57):Math.abs(w)*.15);
-g.arms[0].rotation.x=-1.2+w*.7;g.arms[1].rotation.x=-1.2-w*.7;g.rotation.z=(c.mode=='rise'?0:Math.sin(t*.015)*.12);
-if(Math.sin(t*.012)>0&&beat<tNow-300&&d<20&&c.mode!='stop'&&c.mode!='rise'){beat=tNow;tone(70,.1,Math.max(.02,.2-d*.01),'sine',35)}}}
-function npc(n,t,dt,rp){const g=n.g,p=g.position,d=Math.hypot(rp.x-p.x,rp.z-p.z);let mv=0,sp=2.4,al=n.mode;
-if(al=='scared'){g.arms.forEach((a,i)=>{a.rotation.x=-2.4;a.rotation.z=(i?1:-1)*.4+Math.sin(t*.04+i)*.15});g.rotation.y=Math.atan2(rp.x-p.x,rp.z-p.z);g.position.y=floorY(p.x,p.z)-.25;return}
-if(al=='idle'||al=='move'){if(n.t<t){n.t=t+1500+R()*3000;n.mode=R()<.6?'move':'idle';n.tx=n.b[0]+R()*(n.b[1]-n.b[0]);n.tz=n.b[2]+R()*(n.b[3]-n.b[2])}
-if(n.mode=='move'){if(walk(g,dt,sp,n.tx,n.tz)>.2)mv=1}else if(d<9)g.rotation.y=Math.atan2(rp.x-p.x,rp.z-p.z);
-if(n.lines&&d<6&&t>n.nt){n.nt=t+9000;voice();say(n.lines[Math.floor(R()*n.lines.length)],3)}
-if(!n.jy&&R()<.004){n.jv=3.2}}
-else if(al=='flee'||al=='hunt'){const tg=npcs.filter(o=>al=='flee'?o.mode=='hunt':o.mode=='flee');let o=null,bd=99;tg.forEach(q=>{const e=Math.hypot(q.g.position.x-p.x,q.g.position.z-p.z);if(e<bd){bd=e;o=q}});
-if(al=='flee'){sp=3.4;if(o&&bd<9)walk(g,dt,sp,p.x*2-o.g.position.x,p.z*2-o.g.position.z);else walk(g,dt,2,p.x,p.z-1);mv=1;if(!n.said&&bd<8){n.said=1;voice();say('¡CORRE! ¡Se están infectando!',3)}}
-else{if(o){sp=2.7;walk(g,dt,sp,o.g.position.x,o.g.position.z);mv=1;if(bd<.7){o.mode='conv';o.t=t;tone(60,1.6,.08,'sawtooth',30)}}else{g.rotation.y=Math.atan2(rp.x-p.x,rp.z-p.z)+Math.sin(t*.01)*.4}}clampB(n)}
-else if(al=='conv'){const k=Math.min(1,(t-n.t)/3000);g.setF(.09+.7*k);g.m.color.lerp(new T.Color(0x151515),.03);g.rotation.z=Math.sin(t*.05)*.3*(1-k*.5);g.arms.forEach((a,i)=>{a.rotation.x=Math.sin(t*.03+i*2)*1.5;a.rotation.z=Math.sin(t*.041+i)*.8});if(k>=1){n.mode='hunt';g.rotation.z=0}}
-if(al!='conv'){if(n.mode=='hunt'){g.arms[0].rotation.x=Math.sin(t*.02)*1.2;g.arms[1].rotation.x=Math.sin(t*.027+1)*1.2;g.rotation.z=Math.sin(t*.013)*.15}
-else{const s=Math.sin(t*.01)*(mv?.9:.1);g.arms[0].rotation.x=s;g.arms[1].rotation.x=-s}}
-n.jv-=9.8*dt;n.jy=Math.max(0,n.jy+n.jv*dt);if(n.jy==0&&n.jv<0)n.jv=0;g.position.y=floorY(p.x,p.z)+n.jy+(mv?Math.abs(Math.sin(t*.01))*.1:0)}
-/* ARRANQUE */
-AFRAME.registerComponent('gt',{tick(t,d){go&&frame(t,Math.min(d/1000,.05))}});
-S.addEventListener('loaded',()=>{sc=S.object3D;rig=document.getElementById('rig');cam=document.getElementById('cam');lh=document.getElementById('lh');rh=document.getElementById('rh');
-amb=new T.AmbientLight(0x8899bb,.35);sc.add(amb);fl=new T.PointLight(0xcfe8ff,1.3,14);cam.object3D.add(fl);
-sub=P(1.1,.28,false);sub.position.set(0,-.3,-1);sub.renderOrder=99;sub.visible=false;cam.object3D.add(sub);
-world();spawnStart();setEnv(0);go=1;
-S.addEventListener('enter-vr',au);[lh,rh].forEach(h=>['triggerdown','abuttondown'].forEach(e=>h.addEventListener(e,()=>{au();if(ended)reset()})))});
-window.addEventListener('error',e=>{document.getElementById('st').textContent='Error: '+e.message});
-const st=document.getElementById('st'),hd=document.getElementById('h');
-if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(!ok)st.textContent='VR no disponible aquí. Abre el enlace directamente en el navegador del Quest.'}).catch(()=>{});else st.textContent='WebXR no disponible aquí. Abre el enlace directamente en el navegador del Quest (no dentro de otra app o vista previa).';
-let busy=0;const run=async e=>{e.preventDefault();if(busy)return;busy=1;setTimeout(()=>busy=0,1500);st.textContent='Iniciando...';try{au()}catch(x){}try{await S.enterVR()}catch(x){st.textContent='No se pudo entrar en VR: '+x.message}};
-['click','touchend','pointerup'].forEach(ev=>document.getElementById('go').addEventListener(ev,run));
-S.addEventListener('enter-vr',()=>hd.style.display='none');S.addEventListener('exit-vr',()=>hd.style.display='');
-</script></body></html>
+const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z),rnd=(a,b)=>a+Math.random()*(b-a);
+const ren=new THREE.WebGLRenderer({antialias:false});ren.setPixelRatio(1);ren.setSize(innerWidth,innerHeight);
+ren.xr.enabled=true;ren.xr.setReferenceSpaceType('local-floor');document.body.appendChild(ren.domElement);
+const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,140);
+const rig=new THREE.Group();rig.add(cam);scene.add(rig);const P=rig.position;P.set(20,0,0);
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight)});
+const hemi=new THREE.HemisphereLight(0xcfd8ff,0x403a45,1.1);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffffff,.45);sun.position.set(30,60,20);scene.add(sun);
+const lamp=new THREE.PointLight(0x99aaff,0,14);lamp.position.y=1.5;rig.add(lamp);
+const SKY=new THREE.Color(0x7fa0b8),DARK=new THREE.Color(0x030305),DUSK=new THREE.Color(0x6a3a38);
+scene.background=SKY.clone();scene.fog=new THREE.Fog(0x7fa0b8,15,80);
+// ---------- mundo ----------
+const mc={},cm={};const M=c=>mc[c]||(mc[c]=new THREE.MeshLambertMaterial({color:c,flatShading:true}));
+const BM=c=>cm[c]||(cm[c]=new THREE.MeshBasicMaterial({color:c}));
+const BG=new THREE.BoxGeometry(1,1,1),LG=new THREE.BoxGeometry(.1,.1,1),S=[];
+function B(x,y,z,w,h,d,c,solid=true){const m=new THREE.Mesh(BG,M(c));m.position.set(x,y,z);m.scale.set(w,h,d);scene.add(m);
+ if(solid)S.push({a:[x-w/2,y-h/2,z-d/2],b:[x+w/2,y+h/2,z+d/2]});return m}
+const G=(x0,x1,z0,z1,c)=>B((x0+x1)/2,-.5,(z0+z1)/2,x1-x0,1,z1-z0,c);
+const ROCK=0x4a4540,ROCK2=0x5d564d,WOOD=0x6b4a2a;
+G(-105,-25,-30,30,ROCK);G(-25,-19,-30,-4,ROCK);G(-25,-19,4,30,ROCK);G(-19,-12,-30,30,ROCK);
+G
