@@ -1,35 +1,891 @@
+
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SERVERBLIGHT VR</title>
+
 <style>
-html,body{margin:0;height:100%;background:#000;color:#ccc;font-family:monospace;overflow:hidden}
-#ui{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:5;background:#050508}
-h1{color:#b22;letter-spacing:6px}p{max-width:560px;font-size:14px;opacity:.8}
-#vrb{font:22px monospace;padding:16px 40px;background:#611;color:#fff;border:2px solid #c33;cursor:pointer}
-</style></head><body>
-<div id="ui"><h1>SERVERBLIGHT VR</h1>
-<p>Servidor antiguo GT-0412. Camina con los brazos: empuja el suelo, las paredes y los árboles con las manos. Sin joystick. Llega a Forest.</p>
-<button id="vrb">ENTRAR EN VR</button><p id="msg"></p></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z),rnd=(a,b)=>a+Math.random()*(b-a);
-const ren=new THREE.WebGLRenderer({antialias:false});ren.setPixelRatio(1);ren.setSize(innerWidth,innerHeight);
-ren.xr.enabled=true;ren.xr.setReferenceSpaceType('local-floor');document.body.appendChild(ren.domElement);
-const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,140);
-const rig=new THREE.Group();rig.add(cam);scene.add(rig);const P=rig.position;P.set(20,0,0);
-addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight)});
-const hemi=new THREE.HemisphereLight(0xcfd8ff,0x403a45,1.1);scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xffffff,.45);sun.position.set(30,60,20);scene.add(sun);
-const lamp=new THREE.PointLight(0x99aaff,0,14);lamp.position.y=1.5;rig.add(lamp);
-const SKY=new THREE.Color(0x7fa0b8),DARK=new THREE.Color(0x030305),DUSK=new THREE.Color(0x6a3a38);
-scene.background=SKY.clone();scene.fog=new THREE.Fog(0x7fa0b8,15,80);
-// ---------- mundo ----------
-const mc={},cm={};const M=c=>mc[c]||(mc[c]=new THREE.MeshLambertMaterial({color:c,flatShading:true}));
-const BM=c=>cm[c]||(cm[c]=new THREE.MeshBasicMaterial({color:c}));
-const BG=new THREE.BoxGeometry(1,1,1),LG=new THREE.BoxGeometry(.1,.1,1),S=[];
-function B(x,y,z,w,h,d,c,solid=true){const m=new THREE.Mesh(BG,M(c));m.position.set(x,y,z);m.scale.set(w,h,d);scene.add(m);
- if(solid)S.push({a:[x-w/2,y-h/2,z-d/2],b:[x+w/2,y+h/2,z+d/2]});return m}
-const G=(x0,x1,z0,z1,c)=>B((x0+x1)/2,-.5,(z0+z1)/2,x1-x0,1,z1-z0,c);
-const ROCK=0x4a4540,ROCK2=0x5d564d,WOOD=0x6b4a2a;
-G(-105,-25,-30,30,ROCK);G(-25,-19,-30,-4,ROCK);G(-25,-19,4,30,ROCK);G(-19,-12,-30,30,ROCK);
-G
+*{box-sizing:border-box}
+body{
+ margin:0;overflow:hidden;background:#08090b;
+ font-family:Arial,sans-serif;color:white
+}
+#hud{
+ position:fixed;top:15px;left:15px;z-index:5;
+ background:#080808cc;padding:14px 18px;
+ border:1px solid #555;border-radius:9px;
+ max-width:340px;pointer-events:none
+}
+#title{color:#bd3434;font-size:21px;font-weight:bold}
+#status{font-size:13px;color:#aaa;margin-top:6px}
+#dialog{
+ position:fixed;bottom:12%;left:50%;
+ transform:translateX(-50%);
+ width:85%;max-width:600px;
+ text-align:center;font-size:20px;
+ text-shadow:0 2px 8px black;
+ background:#000a;padding:16px;
+ border-radius:8px;display:none;z-index:6
+}
+#start{
+ position:fixed;inset:0;z-index:10;
+ background:#08090b;display:flex;
+ justify-content:center;align-items:center;
+ flex-direction:column;text-align:center;padding:20px
+}
+#start h1{color:#b32c2c;font-size:42px}
+#start button{
+ background:#a52c2c;color:white;
+ border:0;border-radius:8px;padding:16px 28px;
+ font-size:18px;margin-top:20px
+}
+#start p{max-width:500px;color:#aaa;line-height:1.5}
+</style>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+ }
+}
+</script>
+</head>
+
+<body>
+
+<div id="start">
+<h1>SERVERBLIGHT VR</h1>
+<p>Una partida normal de Gorilla Tag... ¿o no?</p>
+<p>Colócate en un espacio seguro. Necesitas un navegador compatible con WebXR y mandos VR.</p>
+<button id="launch">ENTRAR AL SERVIDOR</button>
+<p>Experiencia individual · Experimental</p>
+</div>
+
+<div id="hud">
+<div id="title">SERVERBLIGHT VR</div>
+<div id="status">Conectando al servidor...</div>
+</div>
+
+<div id="dialog"></div>
+
+<script type="module">
+
+import * as THREE from 'three';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
+
+/* =================================
+   CONFIGURACIÓN
+================================= */
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x11151a);
+scene.fog = new THREE.Fog(0x11151a,20,100);
+
+const camera = new THREE.PerspectiveCamera(
+ 75,innerWidth/innerHeight,0.05,200
+);
+camera.position.set(0,1.6,0);
+
+const renderer = new THREE.WebGLRenderer({
+ antialias:true,
+ powerPreference:'high-performance'
+});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.xr.enabled=true;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const light = new THREE.HemisphereLight(0xb9c5d5,0x282018,1.2);
+scene.add(light);
+
+const sun = new THREE.DirectionalLight(0xffffff,1.1);
+sun.position.set(5,12,4);
+scene.add(sun);
+
+const world = new THREE.Group();
+scene.add(world);
+
+const status = document.getElementById('status');
+const dialog = document.getElementById('dialog');
+
+let state = 0;
+let started = false;
+let finished = false;
+let firstMonster;
+let crystalMonster;
+let warningGorilla;
+let infectionTime = 0;
+
+const clock = new THREE.Clock();
+
+/* =================================
+   MATERIALES Y GEOMETRÍA
+================================= */
+
+function material(color,roughness=0.9){
+ return new THREE.MeshStandardMaterial({
+  color,roughness
+ });
+}
+
+const rockMat=material(0x514c48);
+const darkRock=material(0x282a2d);
+const groundMat=material(0x393b38);
+const crystalMat=new THREE.MeshStandardMaterial({
+ color:0x53c8df,
+ emissive:0x14566c,
+ emissiveIntensity:0.8,
+ roughness:0.3
+});
+const purpleMat=new THREE.MeshStandardMaterial({
+ color:0x9c36ae,
+ emissive:0x52145c,
+ emissiveIntensity:0.7
+});
+
+function box(x,y,z,sx,sy,sz,mat,parent=world){
+ const m=new THREE.Mesh(
+  new THREE.BoxGeometry(sx,sy,sz),mat
+ );
+ m.position.set(x,y,z);
+ m.castShadow=true;
+ m.receiveShadow=true;
+ parent.add(m);
+ return m;
+}
+
+function sphere(x,y,z,sx,sy,sz,mat,parent=world){
+ const m=new THREE.Mesh(
+  new THREE.SphereGeometry(1,8,6),mat
+ );
+ m.position.set(x,y,z);
+ m.scale.set(sx,sy,sz);
+ parent.add(m);
+ return m;
+}
+
+function crystal(x,y,z,size,parent=world){
+ const m=new THREE.Mesh(
+  new THREE.OctahedronGeometry(size,0),
+  crystalMat
+ );
+ m.position.set(x,y,z);
+ m.rotation.set(
+  Math.random(),Math.random(),Math.random()
+ );
+ m.scale.y=1.8;
+ parent.add(m);
+ return m;
+}
+
+/* =================================
+   CAVES CLÁSICO
+================================= */
+
+function createCaves(){
+
+ // Suelo principal
+ box(0,-0.7,16,18,1,42,groundMat);
+
+ // Paredes rocosas
+ for(let z=-4;z<37;z+=3){
+  sphere(-9,2,z,2.5,3,2,rockMat);
+  sphere(9,2,z,2.5,3,2,rockMat);
+ }
+
+ // Techo irregular
+ for(let z=-3;z<37;z+=3){
+  sphere(0,6,z,7,1.5,2.8,darkRock);
+ }
+
+ // Cristales en paredes
+ for(let z=0;z<34;z+=2){
+  crystal(-7.1,1+Math.random()*3,z,0.5+Math.random()*0.5);
+  crystal(7.1,1+Math.random()*3,z,0.5+Math.random()*0.5);
+ }
+
+ // Formaciones rocosas
+ for(let i=0;i<25;i++){
+  sphere(
+   (Math.random()-.5)*13,
+   Math.random()*0.5,
+   Math.random()*34,
+   Math.random()+0.5,
+   Math.random()+0.5,
+   Math.random()+0.5,
+   rockMat
+  );
+ }
+
+ // Entrada a las minas
+ box(0,-0.3,24,5,0.5,5,darkRock);
+
+ // Zona inferior de minas
+ box(0,-1.2,27,9,0.5,12,rockMat);
+
+ for(let i=0;i<18;i++){
+  crystal(
+   (Math.random()-.5)*12,
+   Math.random()*3-0.5,
+   24+Math.random()*10,
+   0.4+Math.random()*0.6
+  );
+ }
+
+ // Entrada a City
+ box(0,0.1,-5,16,0.3,5,rockMat);
+
+ // Lámparas ambientales
+ for(let z=0;z<30;z+=9){
+  const l=new THREE.PointLight(0x9bb9ce,1.5,12);
+  l.position.set(0,4,z);
+  world.add(l);
+ }
+
+}
+
+/* =================================
+   CITY CLÁSICA
+================================= */
+
+function createCity(){
+
+ // City se encuentra después de Caves
+ box(0,-0.5,-19,45,1,25,groundMat);
+
+ const buildingMat=material(0x66656c);
+ const building2=material(0x484c53);
+
+ for(let i=0;i<8;i++){
+  const x=(i%2===0?-1:1)*(8+Math.random()*8);
+  const z=-10-Math.floor(i/2)*5;
+
+  box(
+   x,2,z,
+   5,5+Math.random()*3,5,
+   i%2===0?buildingMat:building2
+  );
+ }
+
+ // Plataformas y estructuras
+ box(-5,1,-15,5,0.5,5,rockMat);
+ box(5,2,-23,5,0.5,5,rockMat);
+ box(0,4,-28,8,0.5,3,buildingMat);
+
+}
+
+/* =================================
+   STUMP CLÁSICO
+================================= */
+
+function createStump(){
+
+ box(0,-0.6,-43,24,1,22,groundMat);
+
+ // Tronco central
+ const trunk=sphere(0,1,-43,3,3,3,material(0x70472c));
+ const hole=sphere(0,3.7,-43,1.7,0.3,1.7,darkRock);
+
+ // Ramas
+ box(-4,1,-42,5,0.6,1,rockMat);
+ box(4,2,-44,5,0.6,1,rockMat);
+
+ // Piedras alrededor
+ for(let i=0;i<15;i++){
+  sphere(
+   (Math.random()-.5)*20,
+   0,
+   -43+(Math.random()-.5)*18,
+   0.7,0.7,0.7,rockMat
+  );
+ }
+
+}
+
+/* =================================
+   FOREST CLÁSICO
+================================= */
+
+function createTree(x,z){
+
+ const wood=material(0x60432b);
+ const leaves=material(0x285e36);
+
+ box(x,2,z,0.7,4,0.7,wood);
+
+ sphere(x,5,z,2,2.2,2,leaves);
+ sphere(x-1,4.5,z,1.5,1.5,1.5,leaves);
+ sphere(x+1,4.5,z,1.5,1.5,1.5,leaves);
+}
+
+function createForest(){
+
+ box(0,-0.7,-86,60,1,45,material(0x38543a));
+
+ for(let i=0;i<55;i++){
+  createTree(
+   (Math.random()-.5)*45,
+   -70-Math.random()*35
+  );
+ }
+
+ // Rocas y plataformas
+ for(let i=0;i<14;i++){
+  sphere(
+   (Math.random()-.5)*25,
+   1+Math.random()*3,
+   -72-Math.random()*25,
+   1.5,1.5,1.5,rockMat
+  );
+ }
+
+}
+
+/* =================================
+   PERSONAJES GORILLA
+================================= */
+
+function createGorilla(color=0x5e77a8,infected=false){
+
+ const g=new THREE.Group();
+
+ const body=sphere(0,0.5,0,0.65,0.8,0.45,material(color),g);
+ const head=sphere(0,1.35,0,0.48,0.48,0.48,material(color),g);
+
+ const face=sphere(0,1.25,0.39,0.3,0.22,0.16,material(0x222222),g);
+
+ const arms=[];
+
+ for(let side of [-1,1]){
+  const arm=sphere(
+   side*0.8,0.45,0,
+   0.22,0.7,0.22,
+   material(color),g
+  );
+
+  arm.rotation.z=side*0.4;
+  arms.push(arm);
+
+  const hand=sphere(
+   side*1.2,-0.1,0,
+   0.3,0.22,0.3,
+   material(color),g
+  );
+
+  // Dedos
+  for(let i=0;i<4;i++){
+   const finger=box(
+    side*1.2+(i-1.5)*0.12,
+    -0.25,
+    0.15,
+    0.07,0.25,0.07,
+    material(color),g
+   );
+
+   if(infected){
+    finger.scale.y=4;
+    finger.material=material(0x211719);
+   }
+  }
+ }
+
+ if(infected){
+  head.material=material(0x292020);
+  body.material=material(0x302020);
+  face.material=material(0x090707);
+ }
+
+ g.userData={
+  arms,
+  infected,
+  baseColor:color,
+  phase:Math.random()*10,
+  speed:0
+ };
+
+ return g;
+}
+
+/* =================================
+   JUGADORES FALSOS
+================================= */
+
+const npcs=[];
+
+function addNPC(x,y,z,color){
+
+ const g=createGorilla(color,false);
+ g.position.set(x,y,z);
+ world.add(g);
+
+ npcs.push({
+  object:g,
+  origin:new THREE.Vector3(x,y,z),
+  phase:Math.random()*10
+ });
+
+}
+
+addNPC(-3,0,6,0x3d70bd);
+addNPC(3,0,12,0x8d3f9d);
+addNPC(-2,0,20,0x5a9a62);
+addNPC(2,0,27,0xc28a36);
+addNPC(5,0,-17,0x428b9e);
+addNPC(-5,0,-40,0xa64e65);
+
+/* =================================
+   GORILLA ASUSTADO
+================================= */
+
+warningGorilla=createGorilla(0x4a779b,false);
+warningGorilla.position.set(2,0,23);
+world.add(warningGorilla);
+warningGorilla.visible=false;
+
+/* =================================
+   MONSTRUOS
+================================= */
+
+function createMonster(x,z){
+
+ const m=createGorilla(0x291d20,true);
+ m.position.set(x,0,z);
+ world.add(m);
+
+ return m;
+}
+
+function distance(a,b){
+ return a.distanceTo(b);
+}
+
+/* =================================
+   ESCENARIOS
+================================= */
+
+createCaves();
+createCity();
+createStump();
+createForest();
+
+/* =================================
+   SISTEMA DE DIÁLOGO
+================================= */
+
+let dialogTimeout;
+
+function say(text,duration=4500){
+
+ dialog.textContent=text;
+ dialog.style.display='block';
+
+ clearTimeout(dialogTimeout);
+
+ dialogTimeout=setTimeout(()=>{
+  dialog.style.display='none';
+ },duration);
+
+ if('speechSynthesis' in window){
+  const speech=new SpeechSynthesisUtterance(text);
+  speech.lang='es-MX';
+  speech.rate=0.85;
+  speech.volume=0.8;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(speech);
+ }
+}
+
+/* =================================
+   CONTROLADORES VR
+================================= */
+
+const controllers=[];
+
+for(let i=0;i<2;i++){
+
+ const controller=renderer.xr.getController(i);
+ scene.add(controller);
+
+ const grip=renderer.xr.getControllerGrip(i);
+ scene.add(grip);
+
+ controllers.push({
+  object:controller,
+  previous:new THREE.Vector3(),
+  initialized:false,
+  pressed:false
+ });
+
+}
+
+const velocity=new THREE.Vector3();
+
+function getPlayerPosition(){
+ return new THREE.Vector3(
+  -world.position.x,
+  1.6,
+  -world.position.z
+ );
+}
+
+function getControllerPressed(controller){
+
+ const session=renderer.xr.getSession();
+
+ if(!session)return false;
+
+ const sources=[...session.inputSources];
+
+ const source=sources.find(s=>s.gamepad);
+
+ if(!source)return false;
+
+ return source.gamepad.buttons.some((b,i)=>
+  i===1 && b.pressed
+ );
+}
+
+/* =================================
+   LOCOMOCIÓN MEDIANTE BRAZOS
+================================= */
+
+function locomotion(dt){
+
+ for(let i=0;i<controllers.length;i++){
+
+  const c=controllers[i];
+  const controller=c.object;
+
+  if(!controller.visible)continue;
+
+  const position=new THREE.Vector3();
+  controller.getWorldPosition(position);
+
+  if(!c.initialized){
+   c.previous.copy(position);
+   c.initialized=true;
+   continue;
+  }
+
+  const delta=position.clone().sub(c.previous);
+  const pressed=getControllerPressed(controller);
+
+  // Empujar el suelo con las manos
+  if(pressed && position.y<1.35){
+
+   const strength=1.6;
+
+   world.position.addScaledVector(delta,strength);
+
+   // Limitar movimiento vertical
+   world.position.y=Math.max(-2,Math.min(2,world.position.y));
+
+  }
+
+  c.previous.copy(position);
+ }
+
+ // Movimiento de prueba para navegador normal
+ if(!renderer.xr.isPresenting){
+
+  if(keys['w'])world.position.z+=dt*4;
+  if(keys['s'])world.position.z-=dt*4;
+  if(keys['a'])world.position.x+=dt*4;
+  if(keys['d'])world.position.x-=dt*4;
+ }
+
+}
+
+/* =================================
+   CONTROLES DE PRUEBA
+================================= */
+
+const keys={};
+
+window.addEventListener('keydown',e=>{
+ keys[e.key.toLowerCase()]=true;
+});
+
+window.addEventListener('keyup',e=>{
+ keys[e.key.toLowerCase()]=false;
+});
+
+/* =================================
+   IA DE JUGADORES
+================================= */
+
+function updateNPCs(dt,time){
+
+ const player=getPlayerPosition();
+
+ for(const npc of npcs){
+
+  const g=npc.object;
+  const p=npc.origin;
+
+  if(state>=2 && Math.random()<0.002){
+   g.rotation.y+=Math.random()*2;
+  }
+
+  g.position.x=p.x+Math.sin(time*0.6+npc.phase)*0.6;
+  g.position.y=Math.abs(Math.sin(time*2+npc.phase))*0.15;
+  g.position.z=p.z+Math.sin(time*0.4+npc.phase)*0.4;
+
+  g.userData.arms.forEach((arm,i)=>{
+   arm.rotation.z=Math.sin(time*2+npc.phase+i)*0.2;
+  });
+
+ }
+
+}
+
+/* =================================
+   IA DE CRIATURAS
+================================= */
+
+function updateMonster(monster,dt,player,speed,minDistance=0){
+
+ if(!monster)return;
+
+ const target=new THREE.Vector3(
+  player.x,
+  0,
+  player.z
+ );
+
+ const direction=target.clone().sub(monster.position);
+ const dist=direction.length();
+
+ if(dist>minDistance){
+
+  direction.normalize();
+
+  monster.position.addScaledVector(
+   direction,
+   speed*dt
+  );
+
+ }
+
+ monster.lookAt(player.x,0.8,player.z);
+
+ monster.userData.arms.forEach((arm,i)=>{
+  arm.rotation.z=Math.sin(clock.elapsedTime*7+i)*0.35;
+ });
+
+}
+
+/* =================================
+   HISTORIA Y EVENTOS
+================================= */
+
+function updateStory(dt){
+
+ const player=getPlayerPosition();
+ const z=player.z;
+
+ if(state===0 && z>19){
+
+  state=1;
+  warningGorilla.visible=true;
+
+  say(
+   'Sal de aquí mientras puedas... no dejes que te atrape vivo.',
+   6000
+  );
+
+  setTimeout(()=>{
+   if(!firstMonster){
+    firstMonster=createMonster(-4,29);
+   }
+  },4000);
+
+  status.textContent='Algo te está observando...';
+
+ }
+
+ if(state===1 && z>27){
+
+  state=2;
+  infectionTime=0;
+
+  say('¿Qué les está pasando...?');
+
+  if(!crystalMonster){
+   crystalMonster=createMonster(4,33);
+  }
+
+  npcs.forEach((npc,i)=>{
+   if(i%2===0){
+    npc.object.userData.infected=true;
+    npc.object.children.forEach(child=>{
+     if(child.material){
+      child.material=material(0x342020);
+     }
+    });
+   }
+  });
+
+  status.textContent='SERVIDOR INFECTADO';
+  scene.fog.color.set(0x281619);
+  scene.fog.near=10;
+  scene.fog.far=65;
+
+ }
+
+ if(state===2){
+
+  infectionTime+=dt;
+
+  if(crystalMonster){
+   updateMonster(crystalMonster,dt,player,2.2,3.5);
+  }
+
+  if(z>34){
+
+   state=3;
+
+   say('¡CORRE! ¡NO DEJES QUE TE ATRAPE!');
+
+   status.textContent='ESCAPA DE CAVES';
+
+  }
+
+ }
+
+ if(state===3){
+
+  if(firstMonster){
+   updateMonster(firstMonster,dt,player,2.8,3.2);
+  }
+
+  if(crystalMonster){
+   updateMonster(crystalMonster,dt,player,2.2,4);
+  }
+
+  if(z>39){
+   status.textContent='CITY: BUSCA LA SALIDA';
+  }
+
+  if(z>55){
+   status.textContent='STUMP: SIGUE CORRIENDO';
+  }
+
+  if(z>75){
+   status.textContent='FOREST: BUSCA EL CAMBIO DE SERVIDOR';
+  }
+
+  if(z>99){
+
+   state=4;
+   finished=true;
+
+   say(
+    'Conexión cambiada. Servidor vacío. Has escapado.',
+    8000
+   );
+
+   status.textContent='SERVIDOR VACÍO';
+
+   if(firstMonster)firstMonster.visible=false;
+   if(crystalMonster)crystalMonster.visible=false;
+
+   npcs.forEach(n=>n.object.visible=false);
+
+   scene.fog.color.set(0x18252b);
+   scene.fog.near=30;
+   scene.fog.far=120;
+
+  }
+
+ }
+
+}
+
+/* =================================
+   ILUMINACIÓN Y CRISTALES
+================================= */
+
+const crystals=[];
+
+world.traverse(obj=>{
+ if(obj.geometry instanceof THREE.OctahedronGeometry){
+  crystals.push(obj);
+ }
+});
+
+function updateVisuals(time){
+
+ crystals.forEach((c,i)=>{
+  c.rotation.y+=0.003;
+  c.position.y+=Math.sin(time*1.5+i)*0.0005;
+ });
+
+}
+
+/* =================================
+   INICIO VR
+================================= */
+
+document.getElementById('launch').onclick=async()=>{
+
+ document.getElementById('start').style.display='none';
+
+ started=true;
+
+ status.textContent='Servidor conectado: CAVES';
+
+ const button=VRButton.createButton(renderer);
+ document.body.appendChild(button);
+
+ say('Conectado. Bienvenido al servidor.');
+
+};
+
+/* =================================
+   BUCLE PRINCIPAL
+================================= */
+
+function animate(){
+
+ const dt=Math.min(clock.getDelta(),0.05);
+ const time=clock.elapsedTime;
+
+ if(started){
+
+  locomotion(dt);
+
+  updateNPCs(dt,time);
+
+  updateStory(dt);
+
+  updateVisuals(time);
+
+ }
+
+ renderer.render(scene,camera);
+
+}
+
+renderer.setAnimationLoop(animate);
+
+/* =================================
+   AJUSTE DE PANTALLA
+================================= */
+
+window.addEventListener('resize',()=>{
+
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+
+ renderer.setSize(innerWidth,innerHeight);
+
+});
+
+</script>
+</body>
+</html>
